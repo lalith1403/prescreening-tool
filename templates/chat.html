@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Chat</h2>
+<div id="chat-history" class="mb-3"></div>
+<form id="chat-form">
+    <div class="mb-3">
+        <label for="user-input" class="form-label">Your message:</label>
+        <input type="text" id="user-input" class="form-control" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Send</button>
+</form>
+
+<script>
+    const chatForm = document.getElementById('chat-form');
+    const userInput = document.getElementById('user-input');
+    const chatHistory = document.getElementById('chat-history');
+    let history = '';
+
+    chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const message = userInput.value;
+        userInput.value = '';
+
+        // Append user message to chat history
+        chatHistory.innerHTML += `<p><strong>You:</strong> ${message}</p>`;
+
+        try {
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ history, user_input: message }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Append bot response to chat history
+                chatHistory.innerHTML += `<p><strong>Bot:</strong> ${data.response}</p>`;
+                history += `User: ${message}\nBot: ${data.response}\n`;
+            } else {
+                console.error('Error:', response.statusText);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    });
+</script>
+{% endblock %}

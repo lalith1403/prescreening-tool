@@ -1,39 +1,22 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Applicant Dashboard</h2>
-<div class="row">
-    <div class="col-md-4">
-        <h3>Available Jobs</h3>
-        <div class="list-group">
-            {% for job in jobs %}
-            <button class="list-group-item list-group-item-action job-item" data-job-id="{{ job.id }}">
-                {{ job.title }}
-            </button>
-            {% endfor %}
+<h2>{{ job.title }}</h2>
+<p>{{ job.description }}</p>
+<div id="chat-container">
+    <div id="chat-history" class="chat-container mb-3"></div>
+    <form id="chat-form">
+        <div class="input-group mb-3">
+            <input type="text" id="user-input" class="form-control" placeholder="Type your message..." required>
+            <button type="submit" class="btn btn-primary">Send</button>
         </div>
-    </div>
-    <div class="col-md-8">
-        <div id="chat-container" style="display: none;">
-            <h3 id="selected-job-title"></h3>
-            <div id="chat-history" class="chat-container mb-3"></div>
-            <form id="chat-form">
-                <div class="input-group mb-3">
-                    <input type="text" id="user-input" class="form-control" placeholder="Type your message..." required>
-                    <button type="submit" class="btn btn-primary">Send</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    </form>
 </div>
 
 <script>
     const chatForm = document.getElementById('chat-form');
     const userInput = document.getElementById('user-input');
     const chatHistory = document.getElementById('chat-history');
-    const chatContainer = document.getElementById('chat-container');
-    const selectedJobTitle = document.getElementById('selected-job-title');
     let history = '';
-    let currentJobId = null;
 
     function appendMessage(sender, message) {
         const messageDiv = document.createElement('div');
@@ -42,17 +25,6 @@
         chatHistory.appendChild(messageDiv);
         chatHistory.scrollTop = chatHistory.scrollHeight;
     }
-
-    document.querySelectorAll('.job-item').forEach(button => {
-        button.addEventListener('click', () => {
-            currentJobId = button.getAttribute('data-job-id');
-            selectedJobTitle.textContent = button.textContent;
-            chatContainer.style.display = 'block';
-            chatHistory.innerHTML = '';
-            history = '';
-            appendMessage('Bot', 'Hello! I can provide you with information about this job role. Would you like to know more or apply for this position?');
-        });
-    });
 
     chatForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -66,7 +38,7 @@
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ history, user_input: message, job_id: currentJobId }),
+                body: JSON.stringify({ history, user_input: message, job_id: '{{ job.id }}' }),
             });
 
             if (response.ok) {
@@ -79,7 +51,7 @@
                     if (data.similar_jobs) {
                         appendMessage('System', 'Here are some jobs that might be a better fit:');
                         data.similar_jobs.forEach(job => {
-                            appendMessage('System', `- ${job.title}`);
+                            appendMessage('System', `- ${job.title} (Match score: ${job.score.toFixed(2)})`);
                         });
                     }
                 }
@@ -92,5 +64,8 @@
             appendMessage('System', 'An error occurred. Please try again.');
         }
     });
+
+    // Start the conversation
+    appendMessage('Bot', 'Hello! I\'m here to help you with your application for the {{ job.title }} position. What would you like to know about the job?');
 </script>
 {% endblock %}

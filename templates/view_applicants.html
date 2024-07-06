@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Applicants for {{ job.title }}</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Application Date</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for applicant in applicants %}
+        <tr>
+            <td>{{ applicant.email }}</td>
+            <td>{{ applicant.status }}</td>
+            <td>{{ applicant.application_date.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>
+                <a href="{{ url_for('view_assessment', job_id=job.id, applicant_id=applicant.id) }}"
+                    class="btn btn-sm btn-primary">View Assessment</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="4">No applicants yet.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<a href="{{ url_for('employer_dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+{% endblock %}

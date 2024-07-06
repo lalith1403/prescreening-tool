@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Company Profile</h2>
+<form method="POST">
+    {{ form.hidden_tag() }}
+    <div class="mb-3">
+        {{ form.name.label(class="form-label") }}
+        {{ form.name(class="form-control") }}
+    </div>
+    <div class="mb-3">
+        {{ form.description.label(class="form-label") }}
+        {{ form.description(class="form-control", rows=5) }}
+    </div>
+    {{ form.submit(class="btn btn-primary") }}
+</form>
+
+<h3 class="mt-4">Additional Information</h3>
+{% if additional_info %}
+<ul class="list-group mb-3">
+    {% for info in additional_info %}
+    <li class="list-group-item">
+        <strong>{{ info.field_name }}:</strong> {{ info.field_value }}
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p>No additional information added yet.</p>
+{% endif %}
+
+<h4>Add New Information</h4>
+<form method="POST">
+    {{ add_info_form.hidden_tag() }}
+    <div class="mb-3">
+        {{ add_info_form.field_name.label(class="form-label") }}
+        {{ add_info_form.field_name(class="form-control") }}
+    </div>
+    <div class="mb-3">
+        {{ add_info_form.field_value.label(class="form-label") }}
+        {{ add_info_form.field_value(class="form-control", rows=3) }}
+    </div>
+    {{ add_info_form.submit(class="btn btn-secondary") }}
+</form>
+{% endblock %}

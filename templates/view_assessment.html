@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Assessment for {{ applicant.email }}</h2>
+<h3>Job: {{ job.title }}</h3>
+<p><strong>Application Status:</strong> {{ application.status }}</p>
+<p><strong>Application Date:</strong> {{ application.application_date.strftime('%Y-%m-%d %H:%M') }}</p>
+
+<h4>Assessment Details</h4>
+<p><strong>Score:</strong> {{ assessment.score|round(2) }}</p>
+<p><strong>Skill Similarity:</strong> {{ assessment.skill_similarity|round(2) }}</p>
+<p><strong>Reasoning:</strong> {{ assessment.reasoning }}</p>
+
+<a href="{{ url_for('view_applicants', job_id=job.id) }}" class="btn btn-secondary">Back to Applicants</a>
+{% endblock %}

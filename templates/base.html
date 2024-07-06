@@ -39,19 +39,15 @@
             </a>
             <div class="navbar-nav">
                 {% if session.get('user_id') %}
-                <a class="nav-item nav-link" href="{{ url_for('chat') }}">
-                    <i class="fas fa-comment-dots mr-1"></i>Chat
-                </a>
-                <a class="nav-item nav-link" href="{{ url_for('logout') }}">
-                    <i class="fas fa-sign-out-alt mr-1"></i>Logout
-                </a>
+                {% if session.get('role') == 'employer' %}
+                <a class="nav-item nav-link" href="{{ url_for('employer_dashboard') }}">Dashboard</a>
                 {% else %}
-                <a class="nav-item nav-link" href="{{ url_for('login') }}">
-                    <i class="fas fa-sign-in-alt mr-1"></i>Login
-                </a>
-                <a class="nav-item nav-link" href="{{ url_for('register') }}">
-                    <i class="fas fa-user-plus mr-1"></i>Register
-                </a>
+                <a class="nav-item nav-link" href="{{ url_for('applicant_dashboard') }}">Dashboard</a>
+                {% endif %}
+                <a class="nav-item nav-link" href="{{ url_for('logout') }}">Logout</a>
+                {% else %}
+                <a class="nav-item nav-link" href="{{ url_for('login') }}">Login</a>
+                <a class="nav-item nav-link" href="{{ url_for('register') }}">Register</a>
                 {% endif %}
             </div>
         </div>

@@ -1,16 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Login</h2>
-<form method="POST" action="{{ url_for('login') }}">
+<h2>{% if request.endpoint == 'login' %}Login{% else %}Register{% endif %}</h2>
+<form method="POST">
     {{ form.hidden_tag() }}
+    {% for field in form if field.name != 'csrf_token' and field.name != 'submit' %}
     <div class="mb-3">
-        {{ form.email.label(class="form-label") }}
-        {{ form.email(class="form-control") }}
+        {{ field.label(class="form-label") }}
+        {{ field(class="form-control") }}
     </div>
-    <div class="mb-3">
-        {{ form.password.label(class="form-label") }}
-        {{ form.password(class="form-control") }}
-    </div>
+    {% endfor %}
     {{ form.submit(class="btn btn-primary") }}
 </form>
 {% endblock %}

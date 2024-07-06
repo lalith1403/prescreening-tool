@@ -1,14 +1,17 @@
 import os
+from datetime import datetime
 from dotenv import load_dotenv
-import dspy
 from flask import Flask, request, jsonify, session, render_template, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, SelectField
-from wtforms.validators import DataRequired, Email, EqualTo
+from wtforms import StringField, PasswordField, SubmitField, SelectField, TextAreaField
+from wtforms.validators import DataRequired, Email, EqualTo, Length
 from flask_migrate import Migrate
+from chatbot_modules.base_module import ModularPrescreeningTool
+from job_matcher import JobMatcher
+from sqlalchemy.sql import func
 
 load_dotenv()
 
@@ -37,25 +40,15 @@ class Job(db.Model):
     description = db.Column(db.Text, nullable=False)
     employer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
-class PrescreeningTool:
-    def __init__(self):
-        try:
-            self.lm = dspy.OpenAI(model="gpt-3.5-turbo", api_key=os.environ.get('OPENAI_API_KEY'))
-            dspy.settings.configure(lm=self.lm)
-            self.generate_response = dspy.ChainOfThought("history: str, user_input: str, job_details: str -> response: str")
-        except Exception as e:
-            app.logger.error(f"Error initializing PrescreeningTool: {str(e)}")
-            raise
+class Application(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    applicant_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey('job.id'), nullable=False)
+    status = db.Column(db.String(20), default='pending')
+    application_date = db.Column(db.DateTime, default=datetime.utcnow)
 
-    def process_interaction(self, history, user_input, job_details):
-        try:
-            response = self.generate_response(history=history, user_input=user_input, job_details=job_details)
-            return response.response
-        except Exception as e:
-            app.logger.error(f"Error in process_interaction: {str(e)}")
-            return "I'm sorry, but I encountered an error while processing your request. Please try again later."
-        
-tool = PrescreeningTool()
+tool = ModularPrescreeningTool()
+job_matcher = JobMatcher()
 
 class LoginForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
@@ -63,11 +56,16 @@ class LoginForm(FlaskForm):
     submit = SubmitField('Login')
 
 class RegistrationForm(FlaskForm):
-    email = StringField('Email', validators=[DataRequired(), Email()])
-    password = PasswordField('Password', validators=[DataRequired()])
+    email = StringField('Email', validators=[DataRequired(), Email(), Length(max=120)])
+    password = PasswordField('Password', validators=[DataRequired(), Length(min=8, max=80)])
     confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
     role = SelectField('Role', choices=[('applicant', 'Applicant'), ('employer', 'Employer')])
     submit = SubmitField('Register')
+
+class JobForm(FlaskForm):
+    title = StringField('Job Title', validators=[DataRequired(), Length(max=100)])
+    description = TextAreaField('Job Description', validators=[DataRequired()])
+    submit = SubmitField('Submit')
 
 def login_required(f):
     @wraps(f)
@@ -108,7 +106,10 @@ def login():
             session['user_id'] = user.id
             session['role'] = user.role
             flash('Login successful!', 'success')
-            return redirect(url_for('chat'))
+            if user.role == 'employer':
+                return redirect(url_for('employer_dashboard'))
+            else:
+                return redirect(url_for('applicant_dashboard'))
         else:
             flash('Invalid email or password. Please try again.', 'danger')
     return render_template('login.html', form=form)
@@ -120,54 +121,99 @@ def logout():
     flash('You have been logged out.', 'info')
     return redirect(url_for('home'))
 
-@app.route('/chat', methods=['GET', 'POST'])
+@app.route('/applicant_dashboard')
 @login_required
-def chat():
-    if request.method == 'POST':
-        try:
-            data = request.json
-            history = data.get('history', '')
-            user_input = data.get('user_input', '')
-            
-            # Create a sample job for demonstration purposes
-            sample_job = Job(
-                title="Software Developer",
-                description="We are looking for a skilled software developer to join our team. The ideal candidate should have experience with Python, Flask, and database management.",
-                employer_id=1  # Assuming an employer with ID 1 exists
-            )
-            db.session.add(sample_job)
-            db.session.commit()
+def applicant_dashboard():
+    if session.get('role') != 'applicant':
+        flash('Access denied.', 'danger')
+        return redirect(url_for('home'))
+    return render_template('applicant_dashboard.html')
 
-            # Use the sample job for the chat interaction
-            job = sample_job
-            if not job:
-                return jsonify({"error": "No jobs available"}), 404
-            
-            job_details = f"Job Title: {job.title}\nDescription: {job.description}"
-            
-            response = tool.process_interaction(history, user_input, job_details)
-            
-            return jsonify({'response': response})
-        except Exception as e:
-            app.logger.error(f"Error in chat processing: {str(e)}")
-            return jsonify({"error": "An error occurred while processing your request."}), 500
-    return render_template('chat.html')
+@app.route('/employer_dashboard')
+@login_required
+def employer_dashboard():
+    if session.get('role') != 'employer':
+        flash('Access denied.', 'danger')
+        return redirect(url_for('home'))
+    jobs = Job.query.filter_by(employer_id=session['user_id']).all()
+    return render_template('employer_dashboard.html', jobs=jobs)
 
-@app.route('/job', methods=['POST'])
+@app.route('/create_job', methods=['GET', 'POST'])
 @login_required
 def create_job():
     if session.get('role') != 'employer':
-        return jsonify({"error": "Unauthorized"}), 403
+        flash('Access denied.', 'danger')
+        return redirect(url_for('home'))
+    
+    form = JobForm()
+    if form.validate_on_submit():
+        new_job = Job(title=form.title.data, description=form.description.data, employer_id=session['user_id'])
+        db.session.add(new_job)
+        db.session.commit()
+        flash('Job created successfully!', 'success')
+        return redirect(url_for('employer_dashboard'))
+    return render_template('create_job.html', form=form)
+
+@app.route('/edit_job/<int:job_id>', methods=['GET', 'POST'])
+@login_required
+def edit_job(job_id):
+    if session.get('role') != 'employer':
+        flash('Access denied.', 'danger')
+        return redirect(url_for('home'))
+    
+    job = Job.query.get_or_404(job_id)
+    if job.employer_id != session['user_id']:
+        flash('Access denied.', 'danger')
+        return redirect(url_for('employer_dashboard'))
+    
+    form = JobForm(obj=job)
+    if form.validate_on_submit():
+        job.title = form.title.data
+        job.description = form.description.data
+        db.session.commit()
+        flash('Job updated successfully!', 'success')
+        return redirect(url_for('employer_dashboard'))
+    return render_template('edit_job.html', form=form, job=job)
+
+@app.route('/delete_job/<int:job_id>', methods=['POST'])
+@login_required
+def delete_job(job_id):
+    if session.get('role') != 'employer':
+        flash('Access denied.', 'danger')
+        return redirect(url_for('home'))
+    
+    job = Job.query.get_or_404(job_id)
+    if job.employer_id != session['user_id']:
+        flash('Access denied.', 'danger')
+        return redirect(url_for('employer_dashboard'))
+    
+    db.session.delete(job)
+    db.session.commit()
+    flash('Job deleted successfully!', 'success')
+    return redirect(url_for('employer_dashboard'))
+
+@app.route('/chat', methods=['POST'])
+@login_required
+def chat():
+    if session.get('role') != 'applicant':
+        return jsonify({"error": "Access denied"}), 403
     
     data = request.json
-    title = data.get('title')
-    description = data.get('description')
+    history = data.get('history', '')
+    user_input = data.get('user_input', '')
     
-    new_job = Job(title=title, description=description, employer_id=session['user_id'])
-    db.session.add(new_job)
-    db.session.commit()
+    # Fetch a random job for demonstration purposes
+    # In a real application, you might want to select a specific job or use the user's application details
+    job = Job.query.order_by(func.random()).first()
     
-    return jsonify({"message": "Job created successfully", "job_id": new_job.id}), 201
+    if job:
+        job_details = f"Job Title: {job.title}\nDescription: {job.description}"
+    else:
+        job_details = "No job details available"
+    
+    response = tool.process_interaction(history, user_input, job_details)
+    
+    return jsonify({'response': response})
 
 if __name__ == '__main__':
     app.run(debug=True)

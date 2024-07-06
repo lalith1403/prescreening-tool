@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Chat</h2>
-<div id="chat-history" class="mb-3"></div>
+<h2>Chat with Prescreening Bot</h2>
+<div id="chat-history" class="chat-container mb-3"></div>
 <form id="chat-form">
-    <div class="mb-3">
-        <label for="user-input" class="form-label">Your message:</label>
-        <input type="text" id="user-input" class="form-control" required>
+    <div class="input-group mb-3">
+        <input type="text" id="user-input" class="form-control" placeholder="Type your message..." required>
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-paper-plane mr-1"></i> Send
+        </button>
     </div>
-    <button type="submit" class="btn btn-primary">Send</button>
 </form>
 
 <script>
@@ -16,13 +17,19 @@
     const chatHistory = document.getElementById('chat-history');
     let history = '';
 
+    function appendMessage(sender, message) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `mb-2 ${sender === 'You' ? 'text-end' : ''}`;
+        messageDiv.innerHTML = `<strong>${sender}:</strong> ${message}`;
+        chatHistory.appendChild(messageDiv);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
     chatForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const message = userInput.value;
         userInput.value = '';
-
-        // Append user message to chat history
-        chatHistory.innerHTML += `<p><strong>You:</strong> ${message}</p>`;
+        appendMessage('You', message);
 
         try {
             const response = await fetch('/chat', {
@@ -35,14 +42,18 @@
 
             if (response.ok) {
                 const data = await response.json();
-                // Append bot response to chat history
-                chatHistory.innerHTML += `<p><strong>Bot:</strong> ${data.response}</p>`;
-                history += `User: ${message}\nBot: ${data.response}\n`;
+                if (data.error) {
+                    appendMessage('System', `Error: ${data.error}`);
+                } else {
+                    appendMessage('Bot', data.response);
+                    history += `User: ${message}\nBot: ${data.response}\n`;
+                }
             } else {
-                console.error('Error:', response.statusText);
+                appendMessage('System', `Error: ${response.statusText}`);
             }
         } catch (error) {
             console.error('Error:', error);
+            appendMessage('System', 'An error occurred. Please try again.');
         }
     });
 </script>
